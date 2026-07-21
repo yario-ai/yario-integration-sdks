@@ -48,6 +48,8 @@ Always verify the signature against the exact raw request bytes before parsing J
 
 See the [Node example](examples/node/webhook.ts), [Python example](examples/python/webhook.py), and [webhook documentation](https://docs.yario.ai/docs/developers/integrations/webhooks).
 
+Complete test-only request flows are available in the [Node.js quickstart](examples/node/quickstart.ts) and [Python quickstart](examples/python/quickstart.py). They fail closed when given a live key and require explicit test installation and client IDs.
+
 ## Development
 
 The canonical contract is committed at [`contract/integration-api.openapi.yaml`](contract/integration-api.openapi.yaml). CI checks its SHA-256 digest against `contract/SHA256SUMS`, tests both SDKs, builds both release artifacts and installs them into clean smoke-test environments.
