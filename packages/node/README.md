@@ -4,3 +4,8 @@ Official Node.js client for the Yario Partner Integration API. See the [integrat
 
 The package includes a typed API client, bounded retries with idempotency, structured API errors and raw-body webhook verification.
 
+Install the current public release:
+
+```bash
+npm install https://github.com/yario-ai/yario-integration-sdks/releases/download/v0.1.0/yario-ai-integration-sdk-0.1.0.tgz
+```
