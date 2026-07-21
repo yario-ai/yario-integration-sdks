@@ -7,7 +7,7 @@ Start with the [developer integration guide](https://docs.yario.ai/docs/develope
 ## Node.js
 
 ```bash
-npm install @yario-ai/integration-sdk
+npm install https://github.com/yario-ai/yario-integration-sdks/releases/download/v0.1.0/yario-ai-integration-sdk-0.1.0.tgz
 ```
 
 ```ts
@@ -25,7 +25,7 @@ const installations = await yario.listInstallations();
 ## Python
 
 ```bash
-pip install yario-integration
+pip install https://github.com/yario-ai/yario-integration-sdks/releases/download/v0.1.0/yario_integration-0.1.0-py3-none-any.whl
 ```
 
 ```python
@@ -64,4 +64,4 @@ pytest packages/python/tests
 python -m build packages/python
 ```
 
-Releases use npm and PyPI Trusted Publishing from GitHub Actions; no long-lived registry token is stored in the repository. See [SECURITY.md](SECURITY.md) for reporting and security guarantees.
+Versioned Node.js and Python artifacts are published in [GitHub Releases](https://github.com/yario-ai/yario-integration-sdks/releases). The npm and PyPI workflows are prepared for Trusted Publishing and will become additional install channels after the registry-owner bootstrap; no long-lived registry token is stored in the repository. See [SECURITY.md](SECURITY.md) for reporting and security guarantees.
