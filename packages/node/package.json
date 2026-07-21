@@ -1,0 +1,33 @@
+{
+  "name": "@yario-ai/integration-sdk",
+  "version": "0.1.0",
+  "description": "Official Node.js SDK for the Yario Partner Integration API",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test test/*.test.ts",
+    "prepack": "npm run build"
+  },
+  "engines": {"node": ">=20"},
+  "repository": {"type": "git", "url": "git+https://github.com/yario-ai/yario-integration-sdks.git"},
+  "homepage": "https://docs.yario.ai/docs/developers/integrations",
+  "bugs": {"url": "https://github.com/yario-ai/yario-integration-sdks/issues"},
+  "license": "MIT",
+  "keywords": ["yario", "payments", "partner", "integration", "sdk", "webhooks"],
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  },
+  "publishConfig": {"access": "public", "provenance": true}
+}
+

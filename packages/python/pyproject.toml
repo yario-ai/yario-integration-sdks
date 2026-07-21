@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "yario-integration"
+version = "0.1.0"
+description = "Official Python SDK for the Yario Partner Integration API"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "Yario AI"}]
+keywords = ["yario", "payments", "partner", "integration", "sdk", "webhooks"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+dependencies = ["httpx>=0.27,<1"]
+
+[project.optional-dependencies]
+dev = ["build>=1.2", "pytest>=8", "pytest-cov>=5"]
+
+[project.urls]
+Documentation = "https://docs.yario.ai/docs/developers/integrations"
+Repository = "https://github.com/yario-ai/yario-integration-sdks"
+Issues = "https://github.com/yario-ai/yario-integration-sdks/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/yario_integration"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

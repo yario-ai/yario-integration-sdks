@@ -1,0 +1,812 @@
+openapi: 3.1.0
+info:
+  title: Yario Integration API
+  version: 1.0.0
+  license:
+    name: По соглашению с Yario
+    identifier: LicenseRef-Yario-Proprietary
+  description: |
+    Integration API связывает систему партнёра с Yario. Через него можно
+    создавать обращения, обмениваться сообщениями и подключать дополнительные
+    функции, предусмотренные договором.
+
+    Базовый раздел `tickets` предоставляет обращения, сообщения и вложения.
+    Раздел `merchant_onboarding` включается отдельно для подключений, в которых
+    партнёр проверяет собранные Yario данные мерчанта.
+
+    Для каждого запроса, изменяющего данные, передавайте `Idempotency-Key`.
+    Этот заголовок защищает операцию от случайного повторного выполнения.
+    Автоматические HTTP-уведомления Yario описаны в разделе «Уведомления».
+  contact:
+    name: Команда интеграций Yario
+    email: info@yario.ai
+servers:
+  - url: https://integration-api.yario.ai
+    description: Один адрес для тестовых (`yario_test_`) и рабочих (`yario_live_`) ключей
+tags:
+  - name: Профиль
+    description: Сведения о ключе, его разрешения (`scopes`) и доступные подключения.
+  - name: Обращения
+    description: Общие обращения партнёра и менеджеров Yario.
+  - name: Сообщения
+    description: Сообщения и сведения о вложениях внутри обращения.
+  - name: Проверка мерчанта
+    description: Собранные Yario анкеты и результат KYC-проверки партнёра.
+  - name: Тестирование
+    description: Управление изолированными учебными данными тестового ключа.
+security:
+  - ApiKey: []
+paths:
+  /v1/me:
+    get:
+      tags: [Профиль]
+      operationId: getIntegrationProfile
+      summary: Получить профиль текущего ключа
+      responses:
+        '200':
+          description: Профиль приложения и окружения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationProfile'
+              example:
+                appId: 3b1fbdb5-e266-420f-a3e5-46041869d20d
+                appSlug: example-crm
+                appName: Example CRM
+                environment: test
+                scopes: ['tickets:read', 'tickets:write', 'messages:read', 'messages:write']
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /v1/installations:
+    get:
+      tags: [Профиль]
+      operationId: listInstallations
+      summary: Получить доступные подключения
+      responses:
+        '200':
+          description: Подключения текущего приложения в выбранной среде
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Installation'
+              example:
+                - id: 5bf6b037-6087-4e70-87e5-cce14774a74d
+                  name: Example Hotel Test
+                  externalReference: hotel-100
+                  capabilities: [tickets, merchant_onboarding]
+                  testClientId: 125cd83f-dc53-4425-95ab-91a487fb88d3
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /v1/test/reset:
+    post:
+      tags: [Тестирование]
+      operationId: resetTestData
+      summary: Сбросить учебные данные тестового ключа
+      description: Удаляет только учебные ресурсы текущей тестовой среды и создаёт новый набор идентификаторов. Рабочий ключ получает `422`.
+      responses:
+        '200':
+          description: Идентификаторы нового набора учебных данных
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestResetResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /v1/installations/{installationId}/tickets:
+    post:
+      tags: [Обращения]
+      operationId: createTicket
+      summary: Создать обращение
+      description: Требует разрешение ключа `tickets:write` и подключённый раздел API `tickets`.
+      parameters:
+        - $ref: '#/components/parameters/InstallationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTicketRequest'
+            example:
+              clientId: 125cd83f-dc53-4425-95ab-91a487fb88d3
+              summary: Нужна проверка реквизитов
+              description: Клиент просит уточнить данные договора.
+              externalReference: crm-48151
+              priority: Regular
+              attachments: []
+      responses:
+        '201':
+          description: Обращение создано либо возвращён результат ранее выполненного запроса с тем же `Idempotency-Key`
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /v1/tickets/{ticketId}:
+    get:
+      tags: [Обращения]
+      operationId: getTicket
+      summary: Получить обращение
+      description: Требует разрешение ключа `tickets:read`.
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      responses:
+        '200':
+          description: Актуальное состояние обращения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    patch:
+      tags: [Обращения]
+      operationId: updateTicket
+      summary: Изменить обращение
+      description: Требует разрешение ключа `tickets:write`. Изменяются только переданные поля.
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTicketRequest'
+            example:
+              status: InProgress
+              priority: Sticky
+      responses:
+        '200':
+          description: Обращение обновлено либо возвращён результат ранее выполненного запроса с тем же `Idempotency-Key`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /v1/tickets/{ticketId}/messages:
+    get:
+      tags: [Сообщения]
+      operationId: listTicketMessages
+      summary: Получить сообщения обращения
+      description: Требует разрешение ключа `messages:read`. Результат отсортирован по `createdAt` по возрастанию.
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+        - name: after
+          in: query
+          required: false
+          description: Вернуть сообщения строго позднее указанного времени RFC 3339.
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+      responses:
+        '200':
+          description: Сообщения обращения
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Сообщения]
+      operationId: createTicketMessage
+      summary: Добавить сообщение
+      description: Требует разрешение ключа `messages:write`. Текст может быть пустым только при наличии вложения.
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMessageRequest'
+            example:
+              content: Прикладываем подписанный договор.
+              attachments:
+                - name: agreement.pdf
+                  mimeType: application/pdf
+                  url: https://files.example.com/signed/agreement.pdf
+                  hash: sha256:7a9c
+      responses:
+        '201':
+          description: Сообщение создано либо возвращён результат ранее выполненного запроса с тем же `Idempotency-Key`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /v1/installations/{installationId}/merchant-onboarding/applications:
+    get:
+      tags: [Проверка мерчанта]
+      operationId: listMerchantOnboardingApplications
+      summary: Получить анкеты мерчантов
+      description: Требует разрешение ключа `merchant_onboarding:read` и подключённый раздел API `merchant_onboarding`.
+      parameters:
+        - $ref: '#/components/parameters/InstallationId'
+      responses:
+        '200':
+          description: Анкеты от новых к старым
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MerchantOnboardingApplication'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /v1/installations/{installationId}/merchant-onboarding/applications/{applicationId}:
+    get:
+      tags: [Проверка мерчанта]
+      operationId: getMerchantOnboardingApplication
+      summary: Получить одну анкету
+      description: Требует разрешение ключа `merchant_onboarding:read` и подключённый раздел API `merchant_onboarding`.
+      parameters:
+        - $ref: '#/components/parameters/InstallationId'
+        - $ref: '#/components/parameters/ApplicationId'
+      responses:
+        '200':
+          description: Актуальный снимок анкеты
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantOnboardingApplication'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    patch:
+      tags: [Проверка мерчанта]
+      operationId: updateMerchantOnboardingApplication
+      summary: Вернуть состояние и результат KYC
+      description: Требует разрешение ключа `merchant_onboarding:write`. Конечные решения нельзя изменить.
+      parameters:
+        - $ref: '#/components/parameters/InstallationId'
+        - $ref: '#/components/parameters/ApplicationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMerchantOnboardingRequest'
+            examples:
+              informationRequired:
+                summary: Запрошены дополнительные данные
+                value:
+                  status: InformationRequired
+                  review:
+                    reasonCode: director_id_unreadable
+                    message: Нужна читаемая цветная копия документа.
+                    requirements:
+                      - field: representatives[0].identityDocument
+                        message: Загрузите документ повторно
+              approved:
+                summary: Проверка пройдена
+                value:
+                  status: Approved
+                  review:
+                    partnerMerchantId: merchant-9921
+                    decidedAt: '2026-07-16T08:30:00Z'
+      responses:
+        '200':
+          description: Анкета обновлена либо возвращён результат ранее выполненного запроса с тем же `Idempotency-Key`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantOnboardingApplication'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/ServerError'
+webhooks:
+  integrationEvent:
+    post:
+      operationId: receiveYarioIntegrationEvent
+      summary: Получить автоматическое уведомление Yario
+      description: |
+        Yario отправляет уведомление на HTTPS-адрес подключения. Подпись вычисляется как
+        `v1=hex(HMAC-SHA256(secret, timestamp + "." + rawBody))`.
+        Получатель должен сохранить `eventId` и не обрабатывать одно уведомление дважды.
+      security:
+        - WebhookSignature: []
+      parameters:
+        - name: X-Yario-Event-Id
+          in: header
+          required: true
+          schema: { type: string, format: uuid }
+        - name: X-Yario-Timestamp
+          in: header
+          required: true
+          schema: { type: integer, format: int64 }
+        - name: X-Yario-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: '^v1=[a-f0-9]{64}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntegrationEvent'
+            examples:
+              ticketMessage:
+                summary: Сообщение менеджера Yario
+                value:
+                  eventId: 0c8b3c8e-26dd-4f15-a0a7-f5307d443adc
+                  type: ticket.message.created
+                  createdAt: '2026-07-16T06:10:00Z'
+                  installationId: 5bf6b037-6087-4e70-87e5-cce14774a74d
+                  data:
+                    ticketId: f5b382ad-d8e7-4c3f-99bb-aa2769d85be1
+                    resource:
+                      messageId: a2fbeb18-44df-4702-a0e4-e90f42d33221
+                      content: Документы получены
+                      attachments: []
+                      createdAt: '2026-07-16T06:09:58Z'
+              merchantApplication:
+                summary: Подготовлена анкета
+                value:
+                  eventId: 4b6f89a5-0105-495b-97c8-71e712bd7b12
+                  type: merchant_onboarding.application.created
+                  createdAt: '2026-07-16T06:20:00Z'
+                  installationId: 5bf6b037-6087-4e70-87e5-cce14774a74d
+                  data:
+                    applicationId: f3027915-51dd-4412-98a7-0669971ed056
+                    externalReference: merchant-100
+      responses:
+        '204':
+          description: Уведомление принято
+        '400':
+          description: Уведомление или обязательные заголовки некорректны
+        '401':
+          description: Подпись некорректна или время уведомления устарело
+        '500':
+          description: Временная ошибка; Yario повторит доставку
+components:
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: Api-Key
+      description: Ключ тестовой среды имеет вид `yario_test_<public-id>.<secret>`, рабочей — `yario_live_<public-id>.<secret>`.
+    WebhookSignature:
+      type: apiKey
+      in: header
+      name: X-Yario-Signature
+      description: HMAC-SHA256 подпись исходного тела и времени отправки в секундах с начала эпохи Unix.
+  parameters:
+    InstallationId:
+      name: installationId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+      description: Идентификатор подключения из `GET /v1/installations`.
+    TicketId:
+      name: ticketId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+      description: Публичный идентификатор связанного обращения.
+    ApplicationId:
+      name: applicationId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Стабильный ключ одной бизнес-операции, от 1 до 200 символов.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
+  responses:
+    BadRequest:
+      description: Некорректный формат запроса или заголовка `Idempotency-Key`
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Unauthorized:
+      description: Ключ API отсутствует, неверен, истёк или отозван
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Forbidden:
+      description: У ключа нет нужного разрешения (`scope`) или раздел API (`capability`) не подключён
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFound:
+      description: Ресурс не найден или не относится к окружению ключа
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Conflict:
+      description: Конфликт состояния или повтор `Idempotency-Key` с другим телом запроса
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    PayloadTooLarge:
+      description: Тело запроса превышает 1 МиБ
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    UnprocessableEntity:
+      description: Нарушено бизнес-правило или ограничение поля
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    TooManyRequests:
+      description: Превышен лимит запросов
+      headers:
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    ServerError:
+      description: Непредвиденный временный сбой
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    IntegrationProfile:
+      type: object
+      additionalProperties: false
+      required: [appId, appSlug, appName, environment, scopes]
+      properties:
+        appId: { type: string, format: uuid }
+        appSlug: { type: string }
+        appName: { type: string }
+        environment:
+          type: string
+          enum: [test, live]
+        scopes:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Scope'
+    Installation:
+      type: object
+      additionalProperties: false
+      required: [id, name, externalReference, capabilities]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        externalReference:
+          type: [string, 'null']
+        capabilities:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Capability'
+        testClientId:
+          type: [string, 'null']
+          format: uuid
+          description: Учебный `clientId` для тестовых сценариев; в рабочей среде отсутствует.
+    TestResetResult:
+      type: object
+      additionalProperties: false
+      required: [installationId, testClientId, merchantApplicationId]
+      properties:
+        installationId: { type: string, format: uuid }
+        testClientId: { type: string, format: uuid }
+        merchantApplicationId:
+          type: [string, 'null']
+          format: uuid
+    CreateTicketRequest:
+      type: object
+      additionalProperties: false
+      required: [clientId, summary]
+      properties:
+        clientId: { type: string, format: uuid }
+        summary:
+          type: string
+          minLength: 1
+          maxLength: 300
+        description:
+          type: string
+          maxLength: 20000
+          default: ''
+        externalReference:
+          type: [string, 'null']
+        priority:
+          $ref: '#/components/schemas/TicketPriority'
+        attachments:
+          type: [array, 'null']
+          items:
+            $ref: '#/components/schemas/Attachment'
+    UpdateTicketRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        summary:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 300
+        status:
+          anyOf:
+            - $ref: '#/components/schemas/TicketStatus'
+            - type: 'null'
+        priority:
+          anyOf:
+            - $ref: '#/components/schemas/TicketPriority'
+            - type: 'null'
+    Ticket:
+      type: object
+      additionalProperties: false
+      required: [id, installationId, clientId, summary, description, status, priority, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        installationId: { type: string, format: uuid }
+        clientId: { type: string, format: uuid }
+        summary: { type: string }
+        description: { type: string }
+        status:
+          $ref: '#/components/schemas/TicketStatus'
+        priority:
+          $ref: '#/components/schemas/TicketPriority'
+        createdAt: { type: string, format: date-time }
+        updatedAt:
+          type: [string, 'null']
+          format: date-time
+    CreateMessageRequest:
+      type: object
+      additionalProperties: false
+      required: [content]
+      properties:
+        content:
+          type: string
+          maxLength: 20000
+        attachments:
+          type: [array, 'null']
+          items:
+            $ref: '#/components/schemas/Attachment'
+    Message:
+      type: object
+      additionalProperties: false
+      required: [id, ticketId, content, author, attachments, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        ticketId: { type: string, format: uuid }
+        content: { type: string }
+        author:
+          type: string
+          enum: [partner, yario]
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+        createdAt: { type: string, format: date-time }
+    Attachment:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: [string, 'null'] }
+        mimeType: { type: [string, 'null'] }
+        url:
+          type: [string, 'null']
+          format: uri
+        hash: { type: [string, 'null'] }
+    MerchantOnboardingApplication:
+      type: object
+      additionalProperties: false
+      required: [id, installationId, externalReference, status, snapshot, review, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        installationId: { type: string, format: uuid }
+        externalReference: { type: string }
+        status:
+          $ref: '#/components/schemas/MerchantOnboardingStatus'
+        snapshot:
+          type: object
+          additionalProperties: true
+          description: Согласованный снимок данных и документов, собранных Yario.
+        review:
+          type: [object, 'null']
+          additionalProperties: true
+          description: Расширяемый результат проверки партнёра.
+        createdAt: { type: string, format: date-time }
+        updatedAt:
+          type: [string, 'null']
+          format: date-time
+    UpdateMerchantOnboardingRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/MerchantOnboardingDecisionStatus'
+        review:
+          type: [object, 'null']
+          additionalProperties: true
+    IntegrationEvent:
+      type: object
+      additionalProperties: false
+      required: [eventId, type, createdAt, installationId, data]
+      properties:
+        eventId: { type: string, format: uuid }
+        type:
+          type: string
+          description: Неизвестные будущие типы должны подтверждаться без обработки.
+          examples:
+            - ticket.updated
+            - ticket.message.created
+            - merchant_onboarding.application.created
+            - merchant_onboarding.application.updated
+        createdAt: { type: string, format: date-time }
+        installationId: { type: string, format: uuid }
+        data:
+          type: object
+          additionalProperties: true
+    ProblemDetails:
+      type: object
+      additionalProperties: true
+      properties:
+        type: { type: [string, 'null'], format: uri-reference }
+        title: { type: [string, 'null'] }
+        status: { type: [integer, 'null'] }
+        detail: { type: [string, 'null'] }
+        instance: { type: [string, 'null'], format: uri-reference }
+        traceId:
+          type: [string, 'null']
+          description: Идентификатор запроса для обращения в поддержку Yario.
+    Scope:
+      type: string
+      enum:
+        - tickets:read
+        - tickets:write
+        - messages:read
+        - messages:write
+        - merchant_onboarding:read
+        - merchant_onboarding:write
+    Capability:
+      type: string
+      enum: [tickets, merchant_onboarding]
+    TicketStatus:
+      type: string
+      enum: [InProgress, WaitingForClient, WaitingForManager, Closed]
+    TicketPriority:
+      type: string
+      enum: [Regular, Sticky, Emergency]
+      default: Regular
+    MerchantOnboardingStatus:
+      type: string
+      enum: [Submitted, UnderReview, InformationRequired, Approved, Rejected]
+    MerchantOnboardingDecisionStatus:
+      type: string
+      enum: [UnderReview, InformationRequired, Approved, Rejected]

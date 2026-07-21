@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm pack --workspace packages/node --pack-destination "$RUNNER_TEMP"
+      - run: mkdir "$RUNNER_TEMP/node-smoke" && cd "$RUNNER_TEMP/node-smoke" && npm init -y && npm install "$RUNNER_TEMP"/*.tgz && node -e "import('@yario-ai/integration-sdk').then(m => { if (!m.YarioClient) process.exit(1) })"
+
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install -e 'packages/python[dev]'
+      - run: pytest packages/python/tests
+      - run: python -m build packages/python
+      - run: python -m venv "$RUNNER_TEMP/python-smoke" && "$RUNNER_TEMP/python-smoke/bin/pip" install packages/python/dist/*.whl && "$RUNNER_TEMP/python-smoke/bin/python" -c "from yario_integration import YarioClient; assert YarioClient"
+

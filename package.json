@@ -1,0 +1,12 @@
+{
+  "name": "yario-integration-sdks",
+  "private": true,
+  "scripts": {
+    "check": "npm run check:contract && npm --workspace packages/node test && npm --workspace packages/node run build",
+    "check:contract": "node scripts/check-contract.mjs",
+    "test:python": "python3 -m pytest packages/python/tests",
+    "build:python": "python3 -m build packages/python"
+  },
+  "workspaces": ["packages/node"]
+}
+
