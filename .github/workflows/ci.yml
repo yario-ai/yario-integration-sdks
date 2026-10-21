@@ -3,14 +3,19 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, 'infra/2342-fast-pr-dev-flow', 'test/2342/**']
 
 permissions:
   contents: read
 
+concurrency:
+  group: integration-sdk-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
 jobs:
   node:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, yario-light]
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,11 +24,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: npm pack --workspace packages/node --pack-destination "$RUNNER_TEMP"
-      - run: mkdir "$RUNNER_TEMP/node-smoke" && cd "$RUNNER_TEMP/node-smoke" && npm init -y && npm install "$RUNNER_TEMP"/*.tgz && node -e "import('@yario-ai/integration-sdk').then(m => { if (!m.YarioClient) process.exit(1) })"
+      - name: Verify installed package in a private smoke directory
+        run: |
+          package_root="$(mktemp -d "$RUNNER_TEMP/sdk-node-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-XXXXXX")"
+          npm pack --workspace packages/node --pack-destination "$package_root"
+          mkdir "$package_root/smoke"
+          cd "$package_root/smoke"
+          npm init -y
+          npm install "$package_root"/*.tgz
+          node -e "import('@yario-ai/integration-sdk').then(m => { if (!m.YarioClient) process.exit(1) })"
 
   python:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, yario-light]
+    timeout-minutes: 10
     strategy:
       matrix:
         python-version: ["3.9", "3.13"]
@@ -33,8 +46,14 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: python -m pip install -e 'packages/python[dev]'
-      - run: pytest packages/python/tests
-      - run: python -m build packages/python
-      - run: python -m venv "$RUNNER_TEMP/python-smoke" && "$RUNNER_TEMP/python-smoke/bin/pip" install packages/python/dist/*.whl && "$RUNNER_TEMP/python-smoke/bin/python" -c "from yario_integration import YarioClient; assert YarioClient"
+      - name: Test and build in a private virtual environment
+        run: |
+          test_root="$(mktemp -d "$RUNNER_TEMP/sdk-python-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-XXXXXX")"
+          python -m venv "$test_root/test"
+          "$test_root/test/bin/python" -m pip install -e 'packages/python[dev]'
+          "$test_root/test/bin/python" -m pytest packages/python/tests
+          "$test_root/test/bin/python" -m build packages/python --outdir "$test_root/dist"
+          python -m venv "$test_root/smoke"
+          "$test_root/smoke/bin/python" -m pip install "$test_root"/dist/*.whl
+          "$test_root/smoke/bin/python" -c "from yario_integration import YarioClient; assert YarioClient"
 
