@@ -28,6 +28,6 @@
     "tsx": "^4.19.0",
     "typescript": "^5.8.0"
   },
-  "publishConfig": {"access": "public", "provenance": true}
+  "publishConfig": {"access": "public", "provenance": false}
 }
 

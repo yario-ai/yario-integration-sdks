@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   node:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, yario-ci]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,7 +23,7 @@ jobs:
       - run: mkdir "$RUNNER_TEMP/node-smoke" && cd "$RUNNER_TEMP/node-smoke" && npm init -y && npm install "$RUNNER_TEMP"/*.tgz && node -e "import('@yario-ai/integration-sdk').then(m => { if (!m.YarioClient) process.exit(1) })"
 
   python:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, yario-ci]
     strategy:
       matrix:
         python-version: ["3.9", "3.13"]
